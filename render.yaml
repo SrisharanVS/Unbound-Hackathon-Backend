@@ -5,7 +5,6 @@ services:
     region: oregon
     plan: free
     buildCommand: |
-      cd backend &&
       npm install -g bun &&
       bun install &&
       bunx prisma generate &&
