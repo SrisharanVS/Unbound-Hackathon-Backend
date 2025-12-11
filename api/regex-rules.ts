@@ -256,11 +256,24 @@ router.get("/regex-rules", authenticateAdmin, async (req: Request, res: Response
 
 router.post("/users", authenticateAdmin, async (req: Request, res: Response) => {
   try {
-    const { username, role } = req.body;
+    const { username, email, role } = req.body;
 
     if (!username || typeof username !== "string") {
       return res.status(400).json({
         error: "username is required and must be a string",
+      });
+    }
+
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({
+        error: "email is required and must be a string",
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        error: "Invalid email format",
       });
     }
 
@@ -270,7 +283,8 @@ router.post("/users", authenticateAdmin, async (req: Request, res: Response) => 
       });
     }
 
-    const userRole = role === "admin" ? "admin" : "member";
+    const validRoles = ["admin", "approver", "member", "lead", "junior"];
+    const userRole = validRoles.includes(role) ? role : "member";
 
     const existingUser = await prisma.user.findUnique({
       where: { username },
@@ -282,11 +296,22 @@ router.post("/users", authenticateAdmin, async (req: Request, res: Response) => 
       });
     }
 
+    const existingEmail = await prisma.user.findFirst({
+      where: { email },
+    });
+
+    if (existingEmail) {
+      return res.status(409).json({
+        error: "Email already exists",
+      });
+    }
+
     const apiKey = `sk_${randomBytes(32).toString("hex")}`;
 
     const user = await prisma.user.create({
       data: {
         username,
+        email,
         password: "",
         role: userRole,
         credits: 100,

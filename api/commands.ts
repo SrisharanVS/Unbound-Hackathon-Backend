@@ -44,6 +44,8 @@ router.post("/command", authenticateApiKey, async (req: Request, res: Response) 
     const user = req.user!;
     const { command_text } = req.body;
 
+    console.log(`[COMMAND RECEIVED] User: ${user.username} (${user.role}) | Command: ${command_text}`);
+
     if (!command_text || typeof command_text !== "string") {
       return res.status(400).json({
         error: "command_text is required and must be a string",

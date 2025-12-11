@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { randomBytes } from "crypto";
 import { prisma } from "../prisma/db";
+import { sendApprovalRequestNotification } from "../lib/email";
 
 const router = Router();
 
@@ -83,6 +84,49 @@ async function authenticateAdmin(req: Request, res: Response, next: () => void) 
   }
 }
 
+async function authenticateApprover(req: Request, res: Response, next: () => void) {
+  const apiKey = req.headers["x-api-key"] as string;
+
+  if (!apiKey) {
+    return res.status(401).json({
+      error: "API key is required. Please provide it in the X-API-Key header.",
+    });
+  }
+
+  try {
+    const keyRecord = await prisma.apiKey.findUnique({
+      where: { key: apiKey },
+      include: { user: true },
+    });
+
+    if (!keyRecord) {
+      return res.status(401).json({
+        error: "Invalid API key",
+      });
+    }
+
+    if (keyRecord.user.role !== "approver") {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Only approvers can access this endpoint",
+      });
+    }
+
+    await prisma.apiKey.update({
+      where: { id: keyRecord.id },
+      data: { lastUsed: new Date() },
+    });
+
+    req.user = keyRecord.user;
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+    return res.status(500).json({
+      error: "Internal server error during authentication",
+    });
+  }
+}
+
 router.post("/approval-request", authenticateApiKey, async (req: Request, res: Response) => {
   try {
     const user = req.user!;
@@ -116,6 +160,26 @@ router.post("/approval-request", authenticateApiKey, async (req: Request, res: R
       },
     });
 
+    try {
+      const approvers = await prisma.user.findMany({
+        where: { role: "approver" },
+        select: { email: true },
+      });
+
+      for (const approver of approvers) {
+        if (approver.email) {
+          await sendApprovalRequestNotification(
+            approver.email,
+            user.username,
+            command_text.trim(),
+            approvalRequest.id
+          );
+        }
+      }
+    } catch (emailError) {
+      console.error("Failed to send approval request notifications:", emailError);
+    }
+
     res.status(201).json({
       message: "Approval request submitted successfully",
       request: {
@@ -138,7 +202,7 @@ router.get("/approval-requests", authenticateApiKey, async (req: Request, res: R
   try {
     const user = req.user!;
 
-    if (user.role === "admin") {
+    if (user.role === "admin" || user.role === "approver") {
       const requests = await prisma.approvalRequest.findMany({
         include: {
           user: {
@@ -179,10 +243,10 @@ router.get("/approval-requests", authenticateApiKey, async (req: Request, res: R
   }
 });
 
-router.post("/approval-requests/:requestId/approve", authenticateAdmin, async (req: Request, res: Response) => {
+router.post("/approval-requests/:requestId/approve", authenticateApprover, async (req: Request, res: Response) => {
   try {
     const { requestId } = req.params;
-    const adminUser = req.user!;
+    const approverUser = req.user!;
 
     const approvalRequest = await prisma.approvalRequest.findUnique({
       where: { id: requestId },
@@ -209,7 +273,7 @@ router.post("/approval-requests/:requestId/approve", authenticateAdmin, async (r
         data: {
           status: "approved",
           reviewedAt: new Date(),
-          reviewedBy: adminUser.id,
+          reviewedBy: approverUser.id,
         },
       }),
       prisma.regexRule.create({
@@ -244,10 +308,10 @@ router.post("/approval-requests/:requestId/approve", authenticateAdmin, async (r
   }
 });
 
-router.post("/approval-requests/:requestId/reject", authenticateAdmin, async (req: Request, res: Response) => {
+router.post("/approval-requests/:requestId/reject", authenticateApprover, async (req: Request, res: Response) => {
   try {
     const { requestId } = req.params;
-    const adminUser = req.user!;
+    const approverUser = req.user!;
 
     const approvalRequest = await prisma.approvalRequest.findUnique({
       where: { id: requestId },
@@ -267,11 +331,11 @@ router.post("/approval-requests/:requestId/reject", authenticateAdmin, async (re
 
     const updatedRequest = await prisma.approvalRequest.update({
       where: { id: requestId },
-      data: {
-        status: "rejected",
-        reviewedAt: new Date(),
-        reviewedBy: adminUser.id,
-      },
+        data: {
+          status: "rejected",
+          reviewedAt: new Date(),
+          reviewedBy: approverUser.id,
+        },
     });
 
     res.status(200).json({

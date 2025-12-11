@@ -14,7 +14,7 @@ model User {
   username      String            @unique
   password      String            // Hashed password
   name          String?
-  email         String?
+  email         String            @unique
   role          Role
   credits       Int               @default(100)
   createdAt     DateTime          @default(now())
