@@ -10,7 +10,6 @@ services:
       bunx prisma generate &&
       bunx prisma migrate deploy
     startCommand: |
-      cd backend &&
       bun run server.ts
     envVars:
       - key: DATABASE_URL
