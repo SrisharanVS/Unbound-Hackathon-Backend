@@ -123,6 +123,116 @@ router.post("/add-regex-rule", authenticateAdmin, async (req: Request, res: Resp
   }
 });
 
+router.put("/regex-rules/:ruleId", authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const { ruleId } = req.params;
+    const { pattern, action, exampleMatch } = req.body;
+
+    if (!pattern || typeof pattern !== "string") {
+      return res.status(400).json({
+        error: "pattern is required and must be a string",
+      });
+    }
+
+    if (!action || typeof action !== "string") {
+      return res.status(400).json({
+        error: "action is required and must be a string",
+      });
+    }
+
+    if (action !== "AUTO_REJECT" && action !== "AUTO_ACCEPT") {
+      return res.status(400).json({
+        error: "action must be either 'AUTO_REJECT' or 'AUTO_ACCEPT'",
+      });
+    }
+
+    if (!isValidRegex(pattern)) {
+      return res.status(400).json({
+        error: "Invalid regex pattern",
+        message: "The provided pattern is not a valid regular expression",
+      });
+    }
+
+    const existingRule = await prisma.regexRule.findUnique({
+      where: { id: ruleId },
+    });
+
+    if (!existingRule) {
+      return res.status(404).json({
+        error: "Regex rule not found",
+      });
+    }
+
+    const patternExists = await prisma.regexRule.findUnique({
+      where: { pattern },
+    });
+
+    if (patternExists && patternExists.id !== ruleId) {
+      return res.status(409).json({
+        error: "Pattern already exists",
+        message: "A rule with this pattern already exists",
+      });
+    }
+
+    const updatedRule = await prisma.regexRule.update({
+      where: { id: ruleId },
+      data: {
+        pattern,
+        action: action as "AUTO_REJECT" | "AUTO_ACCEPT",
+        exampleMatch: exampleMatch || null,
+      },
+    });
+
+    res.status(200).json({
+      message: "Regex rule updated successfully",
+      rule: {
+        id: updatedRule.id,
+        pattern: updatedRule.pattern,
+        action: updatedRule.action,
+        exampleMatch: updatedRule.exampleMatch,
+        createdAt: updatedRule.createdAt,
+        updatedAt: updatedRule.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Update regex rule error:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+router.delete("/regex-rules/:ruleId", authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const { ruleId } = req.params;
+
+    const existingRule = await prisma.regexRule.findUnique({
+      where: { id: ruleId },
+    });
+
+    if (!existingRule) {
+      return res.status(404).json({
+        error: "Regex rule not found",
+      });
+    }
+
+    await prisma.regexRule.delete({
+      where: { id: ruleId },
+    });
+
+    res.status(200).json({
+      message: "Regex rule deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete regex rule error:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 router.get("/regex-rules", authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const rules = await prisma.regexRule.findMany({

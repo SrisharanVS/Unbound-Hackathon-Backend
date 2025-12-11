@@ -3,6 +3,7 @@ import cors from "cors";
 import registerRouter from "./api/register";
 import commandsRouter from "./api/commands";
 import regexRulesRouter from "./api/regex-rules";
+import approvalRequestsRouter from "./api/approval-requests";
 
 const app = express();
 const port = 8080;
@@ -25,6 +26,7 @@ app.get("/", (req: Request, res: Response) => {
 app.use("/api", registerRouter);
 app.use("/api", commandsRouter);
 app.use("/api", regexRulesRouter);
+app.use("/api", approvalRequestsRouter);
 
 app.listen(port, () => {
   console.log(`Listening on port ${port}...`);

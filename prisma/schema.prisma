@@ -10,17 +10,18 @@ generator client {
   }
 
 model User {
-  id            String       @id @default(uuid())
-  username      String       @unique
-  password      String       // Hashed password
+  id            String            @id @default(uuid())
+  username      String            @unique
+  password      String            // Hashed password
   name          String?
   email         String?
   role          Role
-  credits       Int          @default(100)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  credits       Int               @default(100)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
   apiKeys       ApiKey[]
   auditTrails   AuditTrail[]
+  approvalRequests ApprovalRequest[]
 }
 
 model ApiKey {
@@ -45,7 +46,10 @@ model AuditTrail {
 
 enum Role {
     admin
+    approver
     member
+    lead
+    junior
 }
 
 enum RuleAction {
@@ -60,4 +64,22 @@ model RegexRule {
   exampleMatch  String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+model ApprovalRequest {
+  id            String          @id @default(uuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commandText   String
+  status        ApprovalStatus  @default(pending)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  reviewedAt    DateTime?
+  reviewedBy    String?
 }
