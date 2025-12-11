@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: command-gateway-backend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: |
+      cd backend &&
+      npm install -g bun &&
+      bun install &&
+      bunx prisma generate &&
+      bunx prisma migrate deploy
+    startCommand: |
+      cd backend &&
+      bun run server.ts
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+        # Set this in Render dashboard: Your NeonDB connection string
+        # Format: postgresql://user:password@host.neon.tech/dbname?sslmode=require
+      - key: FRONTEND_URL
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+        # Set this in Render dashboard: Your Gmail App Password
+        # Note: This is optional - if not set, email notifications will be disabled
+    healthCheckPath: /
+    autoDeploy: true
