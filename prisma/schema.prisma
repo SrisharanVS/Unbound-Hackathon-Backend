@@ -1,0 +1,63 @@
+generator client {
+    provider = "prisma-client-js"
+    output = "../generated/prisma"
+    runtime = "bun"
+  }
+
+  datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+  }
+
+model User {
+  id            String       @id @default(uuid())
+  username      String       @unique
+  password      String       // Hashed password
+  name          String?
+  email         String?
+  role          Role
+  credits       Int          @default(100)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  apiKeys       ApiKey[]
+  auditTrails   AuditTrail[]
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  lastUsed  DateTime?
+}
+
+model AuditTrail {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commandText   String
+  creditsDeducted Int    @default(10)
+  creditsBefore   Int
+  creditsAfter    Int
+  createdAt     DateTime @default(now())
+}
+
+enum Role {
+    admin
+    member
+}
+
+enum RuleAction {
+    AUTO_REJECT
+    AUTO_ACCEPT
+}
+
+model RegexRule {
+  id            String     @id @default(uuid())
+  pattern       String     @unique
+  action        RuleAction
+  exampleMatch  String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
